@@ -1,0 +1,7 @@
+menu "Thread BR web resources"
+config THREAD_BR_GATEWAY_WEB
+    bool "Include Thread gateway management resources"
+    default n
+    help
+        Set automatically by the thread_br component when thread_gateway is configured.
+endmenu

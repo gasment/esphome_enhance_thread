@@ -1,0 +1,216 @@
+<!--
+  SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+  SPDX-License-Identifier: Apache-2.0
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Thread 边界路由器 - 工具</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="/favicon.ico">
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<div class="container">
+    <h1 class="page-title">工具</h1>
+    <p class="page-desc">网络诊断工具</p>
+
+    <div class="card section" data-allow-offline>
+        <div class="flex-between mb-16">
+            <div class="card-header" style="margin-bottom:0">SRP 服务注册</div>
+            <button class="btn btn-primary btn-sm" id="srpBtn" data-allow-offline onclick="loadSrp()">刷新服务</button>
+        </div>
+        <p class="text-muted" style="font-size:13px;margin-bottom:14px">查看 Thread 节点在边界路由器上注册的服务。这里显示 SRP 注册结果，不代表局域网 mDNS 已收到服务通告。</p>
+        <div id="srpStatus" class="text-muted">等待查询</div>
+        <div id="srpHosts"></div>
+    </div>
+
+    <!-- Ping Section -->
+    <div class="card section">
+        <div class="card-header">Ping（ICMPv6 回显）</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+            从 Thread 边界路由器向 Thread 网络或其他可达网络中的 IPv6 地址发送 ICMPv6 回显请求。
+            <br>提示：也可在<a href="/topology.html" style="color:var(--primary)">网络拓扑</a>页面点击节点，直接进行 Ping 测试。
+        </p>
+        <form id="pingForm" onsubmit="return false">
+            <div class="form-group">
+                <label class="form-label">目标 IPv6 地址 *</label>
+                <input class="form-input" name="address" id="pingAddr" type="text"
+                       placeholder="例如 fd11:22::1 或 fe80::1" required>
+                <div class="form-hint">请输入 Thread 网格本地、链路本地或可路由的 IPv6 地址</div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">发送次数</label>
+                    <input class="form-input" name="count" id="pingCount" type="number"
+                           min="1" max="10" value="4">
+                    <div class="form-hint">回显请求次数（1–10）</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">负载大小（字节）</label>
+                    <input class="form-input" name="size" id="pingSize" type="number"
+                           min="4" max="512" value="32">
+                    <div class="form-hint">不含协议头的负载大小（4–512 字节）</div>
+                </div>
+            </div>
+            <div class="flex-between">
+                <button type="button" class="btn btn-primary" id="pingBtn" onclick="startPing()">开始 Ping</button>
+                <span id="pingStatus" style="font-size:13px"></span>
+            </div>
+        </form>
+    </div>
+
+    <!-- Ping Results -->
+    <div class="card section hidden" id="pingResults">
+        <div class="card-header">Ping 结果</div>
+        <div id="pingReplies" class="ping-output"></div>
+        <div id="pingSummary" class="mt-16"></div>
+    </div>
+
+</div>
+<div class="footer">版权所有 &copy; 2026 Espressif Systems（乐鑫科技）。保留所有权利。</div>
+
+<script src="/static/api.js"></script>
+<script>
+function loadSrp() {
+    var btn = document.getElementById('srpBtn');
+    var status = document.getElementById('srpStatus');
+    var hostsEl = document.getElementById('srpHosts');
+    btn.disabled = true;
+    status.textContent = '正在查询 SRP 注册表…';
+    apiGet('/srp').then(function(data) {
+        if (!data || data.error || !data.result) throw new Error('srp');
+        var result = data.result;
+        var states = {running: '运行中', stopped: '已停止', disabled: '已禁用'};
+        var state = Object.prototype.hasOwnProperty.call(states, result.state) ? states[result.state] : result.state;
+        status.textContent = 'SRP 服务器：' + state + '，端口：' + result.port +
+            (result.truncated ? '（注册表较大，仅显示部分记录）' : '');
+        var hosts = result.hosts || [];
+        if (!hosts.length) {
+            hostsEl.textContent = '暂无注册主机。请检查终端的 SRP 客户端日志。';
+            return;
+        }
+        var html = '';
+        hosts.forEach(function(host) {
+            html += '<div class="mt-16"><strong>' + escapeHtml(host.name) +
+                '</strong>' + (host.deleted ? '（已删除，名称保留）' : '') +
+                '<div class="text-muted" style="font-size:12px;overflow-wrap:anywhere">' +
+                (host.addresses || []).map(escapeHtml).join('<br>') + '</div>';
+            html += '<table><thead><tr><th>服务实例</th><th>服务类型</th><th>端口</th><th>状态</th></tr></thead><tbody>';
+            (host.services || []).forEach(function(service) {
+                html += '<tr><td style="overflow-wrap:anywhere">' + escapeHtml(service.instance) +
+                    '</td><td>' + escapeHtml(service.type) + '</td><td>' + escapeHtml(service.port) +
+                    '</td><td>' + (service.deleted ? '已删除' : '已注册') + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+        });
+        hostsEl.innerHTML = html;
+    }).catch(function() {
+        status.textContent = '无法读取 SRP 注册表，请稍后重试。';
+        hostsEl.textContent = '';
+    }).then(function() { btn.disabled = false; });
+}
+loadSrp();
+
+/* Disable page if Thread network is not connected */
+checkThreadState(function(role, connected) {
+    if (!connected) disableManagementPage();
+});
+
+function startPing() {
+    var addr = document.getElementById('pingAddr').value.trim();
+    if (!addr) {
+        showToast('请输入 IPv6 地址', 'error');
+        return;
+    }
+    var count = parseInt(document.getElementById('pingCount').value) || 4;
+    var size = parseInt(document.getElementById('pingSize').value) || 32;
+
+    /* Clamp values */
+    if (count < 1) count = 1;
+    if (count > 10) count = 10;
+    if (size < 4) size = 4;
+    if (size > 512) size = 512;
+
+    var btn = document.getElementById('pingBtn');
+    var status = document.getElementById('pingStatus');
+    var results = document.getElementById('pingResults');
+    var repliesEl = document.getElementById('pingReplies');
+    var summaryEl = document.getElementById('pingSummary');
+
+    btn.disabled = true;
+    btn.textContent = '正在 Ping…';
+    status.textContent = '正在向 ' + addr + ' 发送 ' + count + ' 次 Ping 请求…';
+    status.style.color = 'var(--primary)';
+
+    /* Show results area with spinner */
+    results.classList.remove('hidden');
+    repliesEl.innerHTML = '<div class="text-center"><div class="spinner" style="width:24px;height:24px;margin:8px auto"></div><div class="text-muted" style="font-size:13px">正在等待响应…</div></div>';
+    summaryEl.innerHTML = '';
+
+    apiPost('/ping', {address: addr, count: count, size: size}).then(function(data) {
+        btn.disabled = false;
+        btn.textContent = '开始 Ping';
+
+        if (data.error !== 0 || !data.result) {
+            status.textContent = apiMessageLabel(data.message) || 'Ping 失败';
+            status.style.color = 'var(--danger)';
+            repliesEl.innerHTML = '<div class="text-muted text-center">Ping 失败，请检查地址并确认 Thread 网络已连接。</div>';
+            return;
+        }
+
+        var r = data.result;
+        var replies = r.replies || [];
+        var stats = r.statistics || {};
+
+        status.textContent = '已完成';
+        status.style.color = 'var(--success)';
+
+        /* Render replies */
+        if (replies.length === 0) {
+            repliesEl.innerHTML = '<div class="ping-line ping-timeout">未收到响应（丢包率 100%）</div>';
+        } else {
+            var html = '';
+            for (var i = 0; i < replies.length; i++) {
+                var p = replies[i];
+                html += '<div class="ping-line ping-ok">'
+                    + escapeHtml(p.size) + ' 字节，来自 <strong>' + escapeHtml(p.from) + '</strong>: '
+                    + '序号=' + escapeHtml(p.seq) + ' 跳数限制=' + escapeHtml(p.hlim) + ' 耗时=' + escapeHtml(p.rtt) + 'ms'
+                    + '</div>';
+            }
+            repliesEl.innerHTML = html;
+        }
+
+        /* Render summary */
+        var sent = stats.sent || 0;
+        var recv = stats.received || 0;
+        var loss = stats.loss_percent !== undefined ? stats.loss_percent.toFixed(1) : '?';
+        var badgeClass = recv === sent ? 'badge-success' : (recv === 0 ? 'badge-danger' : 'badge-warning');
+
+        var summaryHtml = '<div class="ping-summary">';
+        summaryHtml += '<div class="info-row"><span class="info-label">数据包</span>'
+            + '<span class="info-value">' + sent + ' 个已发送，' + recv + ' 个已接收</span></div>';
+        summaryHtml += '<div class="info-row"><span class="info-label">丢包率</span>'
+            + '<span class="info-value"><span class="badge ' + badgeClass + '">' + loss + '%</span></span></div>';
+
+        if (recv > 0 && stats.rtt_min !== undefined) {
+            summaryHtml += '<div class="info-row"><span class="info-label">往返延迟（最小/平均/最大）</span>'
+                + '<span class="info-value">' + stats.rtt_min + ' / ' + stats.rtt_avg + ' / ' + stats.rtt_max + ' ms</span></div>';
+        }
+        summaryHtml += '</div>';
+        summaryEl.innerHTML = summaryHtml;
+
+    }).catch(function() {
+        btn.disabled = false;
+        btn.textContent = '开始 Ping';
+        status.textContent = '连接失败';
+        status.style.color = 'var(--danger)';
+        repliesEl.innerHTML = '<div class="text-muted text-center">无法连接到设备。</div>';
+        showToast('连接失败', 'error');
+    });
+}
+</script>
+</body>
+</html>

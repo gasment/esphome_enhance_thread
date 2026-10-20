@@ -1,0 +1,15 @@
+{
+  "project": "https://github.com/esphome/esphome",
+  "version": "2026.9.1",
+  "source": "installed ESPHome package snapshot; hashes identify the exact local baseline",
+  "path": "esphome/components/openthread_info",
+  "sha256": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "openthread_info_sensor.cpp": "2d15259cc506d3f2113d54448bbbae9f9565e64e9684bcf977dd747105687176",
+    "openthread_info_sensor.h": "d0c921d7ef0b29a1e58d8d87dd7b6b0bf62f20bd50563037dda8c5bf1b89dd93",
+    "openthread_info_text_sensor.cpp": "0972c21d8154317b20fda6e9513fd1e5d93a2a93c629821f5c7360219c17f8cd",
+    "openthread_info_text_sensor.h": "8df5b4724347dec07b7da3a7236879756e6d9d7b124f867eb4374f765d6be7db",
+    "sensor.py": "8d2ed895493cbb89cbb951a88826b20a6e855de3c0dbbc908a484d9ac14d7d10",
+    "text_sensor.py": "013f7084a1968d0a9f89e00b09132dd84f285904078c8bb8c342d4c0e57ffa95"
+  }
+}

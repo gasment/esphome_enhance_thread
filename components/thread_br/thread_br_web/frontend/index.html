@@ -1,0 +1,175 @@
+<!--
+  SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+  SPDX-License-Identifier: Apache-2.0
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Thread 边界路由器 - 总览</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="/favicon.ico">
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<div class="container">
+    <div class="flex-between mb-16">
+        <div>
+            <h1 class="page-title">总览</h1>
+            <p class="page-desc" style="margin-bottom:0">Thread 边界路由器运行状态</p>
+        </div>
+        <button class="btn btn-primary btn-sm" id="refreshBtn" onclick="refreshAll()">刷新</button>
+    </div>
+
+    <div class="grid grid-2 section">
+        <div class="card">
+            <div class="card-header">网络状态</div>
+            <div class="info-row">
+                <span class="info-label">网络名称</span>
+                <span class="info-value" id="p-name">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">设备角色</span>
+                <span class="info-value" id="p-role">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">信道</span>
+                <span class="info-value" id="p-ch">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">发射功率</span>
+                <span class="info-value" id="p-txpow">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">PAN ID</span>
+                <span class="info-value" id="p-panid">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">扩展 PAN ID</span>
+                <span class="info-value mono" id="p-xpanid">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">分区 ID</span>
+                <span class="info-value" id="p-partid">-</span>
+            </div>
+        </div>
+        <div>
+            <div class="card section">
+                <div class="card-header">系统信息</div>
+                <div class="info-row">
+                    <span class="info-label">运行时间</span>
+                    <span class="info-value" id="p-uptime">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">可用堆内存</span>
+                    <span class="info-value" id="p-heap">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">OpenThread 版本</span>
+                    <span class="info-value" id="p-otver">-</span>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">设备标识</div>
+                <div class="info-row">
+                    <span class="info-label">IEEE EUI-64</span>
+                    <span class="info-value mono" id="p-eui64">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">边界代理 ID</span>
+                    <span class="info-value mono" id="p-baid">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">PSKc</span>
+                    <span class="info-value mono" id="p-pskc">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card section">
+        <div class="card-header">IPv6 地址</div>
+        <div id="addrList"><p class="text-muted" style="font-size:13px">正在加载…</p></div>
+    </div>
+
+</div>
+<div class="footer">版权所有 &copy; 2026 Espressif Systems（乐鑫科技）。保留所有权利。</div>
+<script src="/static/api.js"></script>
+<script>
+function renderProperties(data) {
+    if (!data || data.error || !data.result) return;
+    var r = data.result;
+    document.getElementById('p-name').textContent = r['Network:Name'] || '-';
+    document.getElementById('p-role').textContent = threadRoleLabel(r['Thread:Role']);
+    document.getElementById('p-ch').textContent = r['RCP:Channel'] || '-';
+    document.getElementById('p-txpow').textContent = r['RCP:TxPower'] || '-';
+    document.getElementById('p-panid').textContent = r['Network:PANID'] || '-';
+    document.getElementById('p-xpanid').textContent = r['Network:XPANID'] || '-';
+    document.getElementById('p-partid').textContent = r['Network:PartitionID'] || '-';
+    document.getElementById('p-uptime').textContent = r['System:Uptime'] || '-';
+    document.getElementById('p-heap').textContent = r['System:FreeHeap'] || '-';
+    document.getElementById('p-otver').textContent = r['OpenThread:Version'] || '-';
+    document.getElementById('p-eui64').textContent = r['RCP:EUI64'] || '-';
+    document.getElementById('p-baid').textContent = r['Network:BorderAgentID'] || '-';
+    document.getElementById('p-pskc').textContent = r['OpenThread:PSKc'] || '-';
+}
+
+function renderAddresses(data) {
+    var list = (data && data.result) ? data.result : [];
+    var el = document.getElementById('addrList');
+    if (!list.length) {
+        checkThreadState(function(role, connected) {
+            if (!connected) {
+                el.innerHTML = '<div class="disabled-banner">Thread 网络尚未连接，请检查预定义网络参数和 RCP 连接。</div>';
+            } else {
+                el.innerHTML = '<p class="text-muted" style="font-size:13px">暂无地址</p>';
+            }
+        });
+        return;
+    }
+    var html = '<table><thead><tr><th>地址</th><th>来源</th><th>状态</th></tr></thead><tbody>';
+    for (var i = 0; i < list.length; i++) {
+        var a = list[i];
+        var badge = 'badge-info';
+        if (a.origin === 'manual') badge = 'badge-success';
+        else if (a.origin === 'thread') badge = 'badge-warning';
+        var statusBadge = a.preferred ? '<span class="badge badge-success">首选</span>'
+                                      : '<span class="badge badge-danger">已弃用</span>';
+        html += '<tr><td style="font-family:\'Courier New\',Consolas,monospace;font-size:12px">' +
+                escapeHtml(a.address) + '/' + escapeHtml(a.prefixLength) +
+                '</td><td><span class="badge ' + badge + '">' + escapeHtml(addressOriginLabel(a.origin)) + '</span></td><td>' + statusBadge + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+}
+
+function loadProperties() {
+    return apiGet('/get_properties').then(renderProperties).catch(function() {
+        showToast('无法连接到设备', 'error');
+    });
+}
+
+function loadAddresses() {
+    return apiGet('/ipaddr').then(renderAddresses).catch(function() {});
+}
+
+function refreshAll() {
+    var btn = document.getElementById('refreshBtn');
+    btn.disabled = true; btn.textContent = '正在加载…';
+    Promise.all([loadProperties(), loadAddresses()]).then(function() {
+        btn.disabled = false; btn.textContent = '刷新';
+        showToast('总览已刷新', 'success');
+    }).catch(function() {
+        btn.disabled = false; btn.textContent = '刷新';
+    });
+}
+
+/* Render from cache instantly, then fetch live data */
+renderProperties(getCached('/get_properties'));
+renderAddresses(getCached('/ipaddr'));
+loadProperties();
+loadAddresses();
+</script>
+</body>
+</html>

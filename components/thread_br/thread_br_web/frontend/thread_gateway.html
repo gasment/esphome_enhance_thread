@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>网关管理 · Thread BR</title><link rel="stylesheet" href="/static/style.css">
+<style>
+.thread_gateway-node-header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.thread_gateway-filters{display:flex;gap:6px;flex-wrap:wrap}
+.thread_gateway-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.thread_gateway-row{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.thread_gateway-row:last-child{border:0}.thread_gateway-title{font-weight:600}.thread_gateway-meta{font-size:13px;color:var(--text-light)}
+.thread_gateway-entity-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"name approval" "state controls";gap:8px 16px;align-items:start}
+.thread_gateway-entity-name{grid-area:name;min-width:0;text-align:left;overflow-wrap:anywhere}
+.thread_gateway-entity-state{grid-area:state;min-width:0;text-align:left}
+.thread_gateway-registration{grid-area:approval;min-width:0;justify-self:end;justify-content:flex-end;text-align:right;overflow-wrap:anywhere}
+.thread_gateway-registration input{flex-shrink:0}
+.thread_gateway-entity-controls{grid-area:controls;justify-self:end;justify-content:flex-end;width:100%;max-width:360px;min-width:0;text-align:right}
+.thread_gateway-entity-controls input:not([type=checkbox]),.thread_gateway-entity-controls select{flex:1;min-width:0;max-width:100%;text-align:right}
+.thread_gateway-entity-controls button{flex-shrink:0}
+.thread_gateway-value{font-family:monospace;overflow-wrap:anywhere}.thread_gateway-control{display:flex;gap:8px;align-items:center}
+.thread_gateway-control input,.thread_gateway-control select{max-width:240px;padding:8px;border:1px solid var(--border);border-radius:5px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;padding:12px;background:var(--bg)}
+.thread_gateway-status{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.thread_gateway-badge{padding:5px 10px;border-radius:16px;background:var(--bg);font-size:13px}
+.thread_gateway-badge.ok{color:var(--success,#16834a)}.thread_gateway-badge.warn{color:var(--danger)}
+.thread_gateway-capacity-section{padding:16px}
+.thread_gateway-capacity-section .card-header{margin-bottom:12px}
+.thread_gateway-container{max-width:1280px}
+.thread_gateway-capacity-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
+.thread_gateway-stat{display:grid;min-width:0;grid-template-columns:3em minmax(0,1fr);grid-template-rows:18px 18px;gap:2px 4px;align-items:center;padding:6px;border:1px solid var(--border);border-radius:6px}
+.thread_gateway-stat-name{font-size:12px;white-space:nowrap;line-height:18px}
+.thread_gateway-stat strong{min-width:0;font-size:12px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:18px;font-variant-numeric:tabular-nums}
+.thread_gateway-stat small{min-width:0;font-size:11px;text-align:right;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:18px}
+@media(max-width:1100px){.thread_gateway-capacity-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:720px){.thread_gateway-capacity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:360px){.thread_gateway-capacity-grid{grid-template-columns:minmax(0,1fr)}}
+#notice,#systemNotice{padding:12px;border:1px solid var(--border);border-radius:6px;white-space:pre-wrap;margin-bottom:12px}
+#notice:empty,#systemNotice:empty{display:none}
+#systemNotice{color:var(--danger)}input[type=checkbox]{width:18px;height:18px}
+[hidden]{display:none!important}
+</style></head>
+<body><nav class="nav" id="nav"></nav>
+<main class="container thread_gateway-container">
+<div class="flex-between mb-16 thread_gateway-actions"><div><h1 class="page-title" id="title">网关管理</h1>
+<p class="page-desc" id="subtitle">按节点管理传感器与控制项</p></div>
+<div class="thread_gateway-actions"><a class="btn btn-sm" href="/thread_gateway" id="back" hidden>返回节点列表</a>
+<button class="btn btn-sm" id="deleteNode" style="color:var(--danger)" hidden>删除节点</button>
+<button class="btn btn-sm" id="refresh">刷新</button><button class="btn btn-primary btn-sm" id="apply">重启并应用清单</button></div></div>
+<section class="card section" aria-label="网关状态"><div id="summary" class="thread_gateway-status"></div></section>
+<section class="card section thread_gateway-capacity-section"><div class="card-header">容量与存储</div><div id="capacitySummary" class="thread_gateway-capacity-grid"></div></section>
+<div id="systemNotice" role="status"></div><div id="notice" role="status" aria-live="polite"></div>
+<section class="card section" id="nodesSection"><div class="card-header thread_gateway-node-header"><span>节点</span>
+<div class="thread_gateway-filters" role="group" aria-label="筛选节点">
+<button type="button" class="btn btn-primary btn-sm" id="filterAll" aria-pressed="true">全部</button>
+<button type="button" class="btn btn-sm" id="filterReed" aria-pressed="false" title="按 REED 节点类型筛选，包括当前离线的 REED">REED节点</button>
+<button type="button" class="btn btn-sm" id="filterSed" aria-pressed="false" title="按 SED 节点类型筛选，休眠不判定为离线">SED节点</button>
+<button type="button" class="btn btn-sm" id="filterOffline" aria-pressed="false" title="连续心跳超时的 REED 节点，SED 休眠不计入">离线节点</button>
+<button type="button" class="btn btn-sm" id="filterUnconfigured" aria-pressed="false" title="当前 HA 生效实体数为 0 的节点">未设置</button>
+</div></div><div id="nodes"></div></section>
+<section class="card section" id="entitiesSection" hidden><div class="card-header thread_gateway-node-header"><span>实体注册 · 接入 HA</span><button class="btn btn-primary btn-sm" id="save">保存接入选择</button></div>
+<p class="thread_gateway-meta">勾选后保存。重启网关后，按节点名称作为 HA 子设备应用清单。节点休眠时保留最近一次有效值。控制项位于条目右侧，仅在节点允许控制时可用；离线命令不缓存。</p>
+<div id="entities"></div></section>
+<section class="card section" id="debugSection" hidden><div class="card-header">节点调试信息</div><pre id="debug"></pre><div class="thread_gateway-meta">最近控制记录</div><pre id="commands"></pre></section>
+</main><script src="/static/api.js"></script><script src="/static/thread_gateway.js"></script></body></html>

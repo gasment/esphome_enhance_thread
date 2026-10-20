@@ -1,0 +1,29 @@
+# H2-side GPIOs. UART0 / 460800 / four-wire follower are fixed.
+# INFO 日志固定输出到 H2 原生 USB Serial/JTAG，GPIO26(D-)/27(D+) 保留。
+name: esp-thread-br-h2
+esp_idf_version: "5.5.5"
+
+uart:
+  tx_pin: GPIO24
+  rx_pin: GPIO23
+
+coexistence:
+  request_pin: GPIO0
+  priority_pin: GPIO2
+  grant_pin: GPIO1
+  tx_line_pin: GPIO3
+
+# inverted: true 表示低电平点亮；按实际 LED 接线修改。
+leds:
+  activity:  # H2_LED_GREEN：Host UART 收发时闪烁，空闲熄灭
+    pin: GPIO22
+    inverted: false
+    enabled_on_boot: true
+    blink_interval_ms: 100  # 连续通讯时每 100ms 翻转
+    hold_ms: 200           # 最后一次收发后保留闪烁时间
+  connection:  # H2_LED_BLUE：Host 确认连接正常时常亮，异常强制闪烁
+    pin: GPIO25
+    inverted: false
+    enabled_on_boot: true
+    blink_interval_ms: 200
+    timeout_ms: 20000      # Host 心跳超时；至少 10000ms
