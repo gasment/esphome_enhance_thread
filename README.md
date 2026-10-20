@@ -1,0 +1,2 @@
+# esphome_enhance_thread
+基于ESPhome的OpenThread边界路由、网关、节点增强实现
